@@ -2,7 +2,7 @@
 // TODO: replace with a dedicated rpcman appId/key for the burn tracker, restricted to www.orbs.com
 var BURN_TRACKER_RPC_URL="https://rpcman.orbs.network/rpc?key=f74174cb04a077391271c4e660001a54346a17cf7f872bb340e8f327f23320b8&chainId=1&appId=multisig";
 var RPC=BURN_TRACKER_RPC_URL,MS="0x189a5caf060b94961f0d4f3e56ad0d678ebb6c12",TK="0xff56cc6b1e6ded347aa0b7676c85ab0b3d08b0fa",DEAD="0x000000000000000000000000000000000000dEaD";
-var DEPLOY=26435746,CHUNK=7200,TOTAL=507540603n,DAY=864e5,WEEK=7*DAY,MAXGAP=2*3600e3,CONC=4,RETRIES=3;
+var DEPLOY=26435746,CHUNK=7200,TOTAL=507540603n,DAY=864e5,WEEK=7*DAY,MAXGAP=2*3600e3,CONC=4,RETRIES=3,RPCMS=15000,CGMS=20000,LAG=3*3600e3;
 var HASH=/^0x[0-9a-fA-F]{64}$/,HEX=/^0x[0-9a-fA-F]{1,64}$/,WORD=/^0x[0-9a-fA-F]{64}$/;
 function hex(v,re){if(typeof v!=="string"||!(re||HEX).test(v))throw new Error("bad RPC value");return v}
 function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
@@ -11,7 +11,7 @@ async function limit(tasks,n){var out=new Array(tasks.length),i=0;async function
 var TOPIC="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 function $(i){return document.getElementById(i)}
 function pad(a){return "0x"+"0".repeat(24)+a.slice(2).toLowerCase()}
-var rid=0;function rpc(m,p){return fetch(RPC,{method:"POST",credentials:"omit",headers:{"content-type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:++rid,method:m,params:p})}).then(function(r){if(!r.ok)throw new Error("RPC "+r.status);return r.json()}).then(function(j){if(j.error)throw new Error(j.error.message);return j.result})}
+var rid=0;function rpc(m,p){var ctl=new AbortController(),t=setTimeout(function(){ctl.abort()},RPCMS);return fetch(RPC,{method:"POST",credentials:"omit",signal:ctl.signal,headers:{"content-type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:++rid,method:m,params:p})}).then(function(r){if(!r.ok)throw new Error("RPC "+r.status);return r.json()}).then(function(j){if(!j||typeof j!=="object")throw new Error("bad RPC reply");if(j.error)throw new Error(j.error.message);return j.result}).finally(function(){clearTimeout(t)})}
 function call(to,data,tag){return rpc("eth_call",[{to:to,data:data},tag])}
 function fmt(wei){var w=BigInt(wei),i=w/10n**18n,f=(w%10n**18n)*100n/10n**18n;var s=i.toLocaleString("en-US");return f>0n?s+"."+String(f).padStart(2,"0"):s}
 function short(a){return a.slice(0,6)+"…"+a.slice(-4)}
@@ -20,9 +20,9 @@ var ARR='<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 2
 function link(h,t){var a=document.createElement("a");a.className="xl";a.href=h;a.target="_blank";a.rel="noopener noreferrer";a.textContent=t;a.insertAdjacentHTML("beforeend",ARR);return a}
 function td(lbl,cls){var c=document.createElement("td");c.setAttribute("data-l",lbl);if(cls)c.className=cls;return c}
 async function chain(){
- var head=parseInt(hex(await rpc("eth_blockNumber",[])),16);var tag="0x"+head.toString(16);
- var res=await Promise.all([call(TK,"0x70a08231"+pad(MS).slice(2),tag)]);
- $("pool").textContent=fmt(hex(res[0],WORD));
+ var head=parseInt(await retry(function(){return rpc("eth_blockNumber",[]).then(function(v){return hex(v)})}),16);var tag="0x"+head.toString(16);
+ var bal=await retry(function(){return call(TK,"0x70a08231"+pad(MS).slice(2),tag).then(function(v){return hex(v,WORD)})});
+ $("pool").textContent=fmt(bal);
  var logs=[],jobs=[];for(var f=DEPLOY;f<=head;f+=CHUNK){(function(a,b){jobs.push(function(){return rpc("eth_getLogs",[{address:TK,fromBlock:"0x"+a.toString(16),toBlock:"0x"+b.toString(16),topics:[TOPIC,pad(MS),pad(DEAD)]}]).then(function(r){if(!Array.isArray(r))throw new Error("bad logs");return r})})})(f,Math.min(head,f+CHUNK-1))}
  (await limit(jobs,CONC)).forEach(function(l){logs=logs.concat(l)});
  logs.forEach(function(l){if(!l||typeof l!=="object")throw new Error("bad log");hex(l.transactionHash,HASH);hex(l.blockNumber);hex(l.logIndex);hex(l.data,WORD)});
@@ -31,6 +31,7 @@ async function chain(){
  var bn=Array.from(new Set(logs.map(function(l){return l.blockNumber})));var ts={};
  await limit(bn.map(function(b){return function(){return rpc("eth_getBlockByNumber",[b,false]).then(function(x){if(!x)throw new Error("no block");ts[b]=parseInt(hex(x.timestamp),16)*1000})}}),CONC);
  $("burned").textContent=fmt(sum);$("count").textContent=String(logs.length);
+ if(BigInt(bal)===0n&&!logs.length){$("poolhint").textContent="Not funded yet. Burns begin once 507,540,603 ORBS are sent to the Orbs burn controller.";$("counthint").textContent="Not funded yet. Weekly batches start once the program is funded.";$("burnedhint").textContent="Not funded yet. Nothing has been burned under OIP-10 so far."}
  var pct=Number(sum*10000n/(TOTAL*10n**18n))/100;$("progbar").style.width=Math.min(100,pct)+"%";$("progtxt").textContent=pct.toFixed(2)+"% of 507,540,603 ORBS in the program";
  if(logs.length){var L=logs[logs.length-1],sm=document.createElement("small");sm.textContent="ORBS";$("latest").textContent=fmt(L.v)+" ";$("latest").appendChild(sm);$("latesthint").textContent=d10(ts[L.blockNumber])+" UTC · ";$("latesthint").appendChild(link("https://etherscan.io/tx/"+L.transactionHash,"View transaction"))}
  else{$("latest").textContent="None yet";$("latesthint").textContent="The first weekly burn will appear here"}
@@ -40,12 +41,17 @@ async function chain(){
 }
 function weekStart(now){var d=new Date(now);var m=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())-((d.getUTCDay()+6)%7)*DAY;return m-WEEK}
 function okObs(p){return Array.isArray(p)&&p.length===2&&typeof p[0]==="number"&&isFinite(p[0])&&typeof p[1]==="number"&&isFinite(p[1])&&p[1]>0}
-function twap(prices,s,e){if(!Array.isArray(prices)||!prices.every(okObs))return{ok:false,count:0,gap:0};var area=0,cur=s,cnt=0,gap=0,used=[];for(var i=0;i<prices.length;i++){var u=prices[i],d=prices[i+1];if(!d||d[0]<=s||u[0]>=e)continue;var a=Math.max(s,u[0]),b=Math.min(e,d[0]),g=d[0]-u[0];gap=Math.max(gap,g);if(a!==cur||g>MAXGAP)return{ok:false,count:cnt,gap:gap};area+=u[1]*(b-a);cnt++;cur=b;used.push(u);if(cur===e){used.push(d);break}}if(cur!==e)return{ok:false,count:cnt,gap:gap};return{ok:true,avg:area/(e-s),count:cnt,gap:gap,used:used}}
+function okSeries(p){if(!Array.isArray(p)||!p.every(okObs))return false;for(var i=1;i<p.length;i++)if(!(p[i][0]>p[i-1][0]))return false;return true}
+function twap(prices,s,e){if(!okSeries(prices))return{ok:false,count:0,gap:0};var area=0,cur=s,cnt=0,gap=0,used=[];for(var i=0;i<prices.length;i++){var u=prices[i],d=prices[i+1];if(!d||d[0]<=s||u[0]>=e)continue;var a=Math.max(s,u[0]),b=Math.min(e,d[0]),g=d[0]-u[0];gap=Math.max(gap,g);if(a!==cur||g>MAXGAP)return{ok:false,count:cnt,gap:gap};area+=u[1]*(b-a);cnt++;cur=b;used.push(u);if(cur===e){used.push(d);break}}if(cur!==e)return{ok:false,count:cnt,gap:gap,tail:cnt>0,cur:cur};var avg=area/(e-s);if(!isFinite(avg)||!(avg>0))return{ok:false,count:cnt,gap:gap};return{ok:true,avg:avg,count:cnt,gap:gap,used:used}}
 function chart(r,s,e){var el=$("chart"),W=640,H=240,P=8,pts=r.used.filter(function(p){return p[0]>=s&&p[0]<=e});var ys=pts.map(function(p){return p[1]}).concat([r.avg]),mn=Math.min.apply(0,ys),mx=Math.max.apply(0,ys),pad=(mx-mn)*.12||mx*.01;mn-=pad;mx+=pad;
  function X(t){return P+(t-s)/(e-s)*(W-2*P)}function Y(v){return H-22-(v-mn)/(mx-mn)*(H-40)}
  var line=pts.map(function(p){return X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1)}).join(" ");var g="";
  for(var k=0;k<=7;k++){var x=X(s+k*DAY);g+='<line x1="'+x+'" x2="'+x+'" y1="8" y2="'+(H-22)+'" stroke="#e2e2e2"/>'+(k<7?'<text x="'+(x+4)+'" y="'+(H-6)+'" font-size="10" fill="#59595a">'+["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][k]+'</text>':"")}
- el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+g+'<polyline points="'+line+'" fill="none" stroke="#3346f2" stroke-width="1.6" vector-effect="non-scaling-stroke"/><line x1="'+P+'" x2="'+(W-P)+'" y1="'+Y(r.avg)+'" y2="'+Y(r.avg)+'" stroke="#da88de" stroke-width="2" stroke-dasharray="6 5" vector-effect="non-scaling-stroke"/></svg>'}
+ el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+g+'<polyline points="'+line+'" fill="none" stroke="#3346f2" stroke-width="1.6" vector-effect="non-scaling-stroke"/><line x1="'+P+'" x2="'+(W-P)+'" y1="'+Y(r.avg)+'" y2="'+Y(r.avg)+'" stroke="#da88de" stroke-width="2" stroke-dasharray="6 5" vector-effect="non-scaling-stroke"/></svg>';
+ var pv=pts.map(function(p){return p[1]}),hi=Math.max.apply(0,pv),lo=Math.min.apply(0,pv),usd=function(v){return "$"+v.toFixed(6)};
+ function lab(cls,txt,v,below){var sp=document.createElement("span");sp.className="cl "+cls;sp.textContent=txt+" "+usd(v);sp.style.top="calc("+(Y(v)/H*100).toFixed(2)+"% "+(below?"+ 3px":"- 17px")+")";el.appendChild(sp)}
+ lab("hi","High",hi,false);lab("lo","Low",lo,true);lab("av","Average",r.avg,r.avg-lo<(hi-lo)/2?false:true);
+ var sum="Hourly ORBS/USD price over the pricing week. High "+usd(hi)+", low "+usd(lo)+", time weighted average "+usd(r.avg)+".";el.setAttribute("aria-label",sum);el.setAttribute("title",sum)}
 async function pricing(){
  var s=weekStart(Date.now()),e=s+WEEK,days=Math.ceil((Date.now()-s+MAXGAP)/DAY)+1;
  var url="https://api.coingecko.com/api/v3/coins/orbs/market_chart?vs_currency=usd&days="+days+"&precision=full";
@@ -53,10 +59,11 @@ async function pricing(){
  $("srclink").href=url;
  var key="orbsburn:cg:"+s,cached=null,data=null,stale=false;try{cached=JSON.parse(sessionStorage.getItem(key)||"null")}catch(x){}
  if(cached&&Date.now()-cached.at<15*60e3)data=cached.prices;
- else{try{var ctl=new AbortController(),t=setTimeout(function(){ctl.abort()},20000);var r=await fetch(url,{credentials:"omit",signal:ctl.signal,headers:{Accept:"application/json"}});clearTimeout(t);if(!r.ok)throw new Error("HTTP "+r.status);var j=await r.json();if(!j||!Array.isArray(j.prices))throw new Error("no prices");data=j.prices.filter(function(p){return !Array.isArray(p)||typeof p[0]!=="number"||!isFinite(p[0])||(p[0]>=s-MAXGAP&&p[0]<=e+MAXGAP)});if(data.every(okObs))try{sessionStorage.setItem(key,JSON.stringify({at:Date.now(),prices:data}))}catch(x){}}
+ else{try{var ctl=new AbortController(),t=setTimeout(function(){ctl.abort()},CGMS),j;try{var r=await fetch(url,{credentials:"omit",signal:ctl.signal,headers:{Accept:"application/json"}});if(!r.ok)throw new Error("HTTP "+r.status);j=await r.json()}finally{clearTimeout(t)}if(!j||!Array.isArray(j.prices))throw new Error("no prices");data=j.prices.filter(function(p){return !Array.isArray(p)||typeof p[0]!=="number"||!isFinite(p[0])||(p[0]>=s-MAXGAP&&p[0]<=e+MAXGAP)});if(okSeries(data))try{sessionStorage.setItem(key,JSON.stringify({at:Date.now(),prices:data}))}catch(x){}}
   catch(err){if(cached){data=cached.prices;stale=true}else throw err}}
  var res=twap(data,s,e);
  $("obs").textContent=String(res.count);$("gap").textContent=(res.gap/3600e3).toFixed(1)+" hours";
+ if(!res.ok&&res.tail&&e-res.cur<=MAXGAP&&Date.now()-e<LAG){$("twap").textContent="Not available yet";$("cov").textContent="Waiting for the final hourly price";$("pricestatus").textContent="The pricing week just closed. The final hourly price usually appears within about an hour.";return}
  if(!res.ok){$("twap").textContent="Not available";$("cov").textContent="Incomplete";$("pricestatus").textContent="The price observations for this week do not pass the coverage check.";return}
  $("twap").textContent="$"+res.avg.toFixed(6);$("cov").textContent="Complete";
  $("pricestatus").textContent="Source: CoinGecko ORBS/USD hourly observations"+(stale?" (showing the last loaded response; refresh failed)":"")+".";

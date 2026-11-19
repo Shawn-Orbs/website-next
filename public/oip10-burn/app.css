@@ -57,7 +57,8 @@ h2{font-size:clamp(1.7rem,1rem + 1.8vw,2.5rem)}h3{font-size:1.15rem;letter-spaci
 .pcard,.chart{background:var(--bg);border:1px solid var(--ln);padding:22px;margin:0}
 .kv{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--ln);font-size:14px;color:var(--fg2)}.kv:first-child{padding-top:0}
 .kv b{font-weight:500;color:var(--fg);font-variant-numeric:tabular-nums;text-align:right}
-#chart{height:240px}#chart svg{width:100%;height:100%;display:block}
+#chart{height:240px;position:relative}#chart svg{width:100%;height:100%;display:block}
+.cl{position:absolute;font-size:10px;line-height:14px;font-weight:500;color:var(--mu);background:rgba(246,246,246,.85);padding:0 4px;white-space:nowrap;font-variant-numeric:tabular-nums;pointer-events:none}.cl.hi,.cl.lo{left:8px}.cl.av{right:8px;color:#a14fa6}
 figcaption{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:400;color:var(--mu2);margin-top:10px}
 .lg{display:inline-block;width:18px;height:0;border-top:2px solid var(--ac)}.lg.avg{border-top:2px dashed #da88de;margin-left:12px}
 .steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
@@ -99,13 +100,13 @@ code{font-family:var(--mono);font-size:12.5px;overflow-wrap:anywhere;display:blo
 .res .xl .ext{color:var(--ac)}.res .xl:hover{border-color:var(--ac);color:var(--ac)}
 .foot{padding:28px 0 40px}.foot-in{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--mu);align-items:center}
 @media(max-width:1000px){.stats{grid-template-columns:1fr 1fr}.steps{grid-template-columns:1fr 1fr}.meth,.price-grid{grid-template-columns:1fr}.flow{position:static}.res{grid-template-columns:1fr 1fr}}
-@media(max-width:640px){.wrap{padding:0 18px}.top-in{gap:10px;height:60px}.top-tag{padding-left:10px;font-size:10px;letter-spacing:.12em}.net span{display:none}.net{padding:7px}.logo{font-size:15px;letter-spacing:.26em}.logo img{width:24px;height:23px}
+@media(max-width:640px){.wrap{padding:0 18px}.top-in{gap:10px;height:60px}.top-tag{padding-left:10px;font-size:10px;letter-spacing:.12em}.net .nl-x{display:none}.net{padding:6px 8px;gap:6px;font-size:10px;letter-spacing:.1em}.logo{font-size:15px;letter-spacing:.26em}.logo img{width:24px;height:23px}
 .hero{padding:40px 0}.stats,.steps,.res{grid-template-columns:1fr}.crow{grid-template-columns:1fr;gap:4px;padding:12px 16px}.hero{padding:44px 0}.glow{width:100%;height:220px}.sec{padding:52px 0}
 .tbl thead{display:none}.tbl,.tbl tbody,.tbl tr,.tbl td{display:block;width:100%}.tbl tr{border-bottom:1px solid var(--ln);padding:8px 0}.tbl td{border:0;padding:5px 16px;display:flex;justify-content:space-between;gap:12px}.tbl td::before{content:attr(data-l);font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--mu)}.tbl td.empty{display:block;padding:32px 16px}.tbl td.empty::before{content:none}.r{text-align:right}
 #chart{height:200px}}
 
 @media(prefers-reduced-motion:reduce){.glow{animation:none}.fbox,.fbox i{transition:none}}
-@media(max-width:640px){.sub{white-space:nowrap;font-size:clamp(12.5px,3.65vw,15px)}}
+@media(max-width:640px){.sub{white-space:normal;font-size:clamp(12.5px,3.65vw,15px)}}
 
 @media(prefers-reduced-motion:reduce){.fl::after,.fbox span,.fbox i{transition:none}}
 
