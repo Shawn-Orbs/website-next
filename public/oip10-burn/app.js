@@ -49,8 +49,8 @@ function chart(r,s,e){var el=$("chart"),W=640,H=240,P=8,pts=r.used.filter(functi
  for(var k=0;k<=7;k++){var x=X(s+k*DAY);g+='<line x1="'+x+'" x2="'+x+'" y1="8" y2="'+(H-22)+'" stroke="#e2e2e2"/>'+(k<7?'<text x="'+(x+4)+'" y="'+(H-6)+'" font-size="10" fill="#59595a">'+["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][k]+'</text>':"")}
  el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+g+'<polyline points="'+line+'" fill="none" stroke="#3346f2" stroke-width="1.6" vector-effect="non-scaling-stroke"/><line x1="'+P+'" x2="'+(W-P)+'" y1="'+Y(r.avg)+'" y2="'+Y(r.avg)+'" stroke="#da88de" stroke-width="2" stroke-dasharray="6 5" vector-effect="non-scaling-stroke"/></svg>'}
 async function pricing(){
- var s=weekStart(Date.now()),e=s+WEEK,days=Math.ceil((Date.now()-s+MAXGAP)/DAY)+1;
- var url="https://api.coingecko.com/api/v3/coins/orbs/market_chart?vs_currency=usd&days="+days+"&precision=full";
+ var s=weekStart(Date.now()),e=s+WEEK;
+ var url="/api/oip10-burn/prices/";
  $("weeklbl").textContent=d10(s)+" to "+d10(e)+" · Monday 00:00 UTC";
  $("srclink").href=url;
  var key="orbsburn:cg:"+s,cached=null,data=null,stale=false;try{cached=JSON.parse(sessionStorage.getItem(key)||"null")}catch(x){}
