@@ -1,0 +1,84 @@
+(function(){"use strict";
+var RPC="https://rpcman.orbs.network/rpc?key=f74174cb04a077391271c4e660001a54346a17cf7f872bb340e8f327f23320b8&chainId=1&appId=multisig",MS="0x189a5caf060b94961f0d4f3e56ad0d678ebb6c12",TK="0xff56cc6b1e6ded347aa0b7676c85ab0b3d08b0fa",DEAD="0x000000000000000000000000000000000000dEaD";
+var DEPLOY=26435746,CHUNK=7200,TOTAL=507540603n,DAY=864e5,WEEK=7*DAY,MAXGAP=2*3600e3;
+var TOPIC="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+function $(i){return document.getElementById(i)}
+function pad(a){return "0x"+"0".repeat(24)+a.slice(2).toLowerCase()}
+var rid=0;function rpc(m,p){return fetch(RPC,{method:"POST",credentials:"omit",headers:{"content-type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:++rid,method:m,params:p})}).then(function(r){if(!r.ok)throw new Error("RPC "+r.status);return r.json()}).then(function(j){if(j.error)throw new Error(j.error.message);return j.result})}
+function call(to,data,tag){return rpc("eth_call",[{to:to,data:data},tag])}
+function fmt(wei){var w=BigInt(wei),i=w/10n**18n,f=(w%10n**18n)*100n/10n**18n;var s=i.toLocaleString("en-US");return f>0n?s+"."+String(f).padStart(2,"0"):s}
+function short(a){return a.slice(0,6)+"…"+a.slice(-4)}
+function d10(ms){return new Date(ms).toISOString().slice(0,10)}
+var ARR='<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 2.5h6v6M9.5 2.5 2.5 9.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
+function link(h,t){return '<a class="xl" href="'+h+'" target="_blank" rel="noopener noreferrer">'+t+ARR+'</a>'}
+async function chain(){
+ var head=parseInt(await rpc("eth_blockNumber",[]),16);var tag="0x"+head.toString(16);
+ var res=await Promise.all([call(TK,"0x70a08231"+pad(MS).slice(2),tag)]);
+ $("pool").textContent=fmt(res[0]);
+ var logs=[],jobs=[];for(var f=DEPLOY;f<=head;f+=CHUNK){jobs.push(rpc("eth_getLogs",[{address:TK,fromBlock:"0x"+f.toString(16),toBlock:"0x"+Math.min(head,f+CHUNK-1).toString(16),topics:[TOPIC,pad(MS),pad(DEAD)]}]))}
+ (await Promise.all(jobs)).forEach(function(l){logs=logs.concat(l)});
+ logs.sort(function(a,b){return parseInt(a.blockNumber,16)-parseInt(b.blockNumber,16)||parseInt(a.logIndex,16)-parseInt(b.logIndex,16)});
+ var sum=0n;logs.forEach(function(l){l.v=BigInt(l.data);sum+=l.v});
+ var bn=Array.from(new Set(logs.map(function(l){return l.blockNumber})));var ts={};
+ await Promise.all(bn.map(function(b){return rpc("eth_getBlockByNumber",[b,false]).then(function(x){ts[b]=parseInt(x.timestamp,16)*1000})}));
+ $("burned").textContent=fmt(sum);$("count").textContent=String(logs.length);
+ var pct=Number(sum*10000n/(TOTAL*10n**18n))/100;$("progbar").style.width=Math.min(100,pct)+"%";$("progtxt").textContent=pct.toFixed(2)+"% of 507,540,603 ORBS in the program";
+ if(logs.length){var L=logs[logs.length-1];$("latest").innerHTML=fmt(L.v)+" <small>ORBS</small>";$("latesthint").innerHTML=d10(ts[L.blockNumber])+" UTC · "+link("https://etherscan.io/tx/"+L.transactionHash,"View transaction")}
+ else{$("latest").textContent="None yet";$("latesthint").textContent="The first weekly burn will appear here"}
+ $("rows").innerHTML=logs.length?logs.slice().reverse().map(function(l){return '<tr><td data-l="Date">'+new Date(ts[l.blockNumber]).toISOString().slice(0,16).replace("T"," ")+'</td><td data-l="Pricing week"><span class="tag ph">[PLACEHOLDER]</span></td><td data-l="Price used"><span class="tag ph">[PLACEHOLDER]</span></td><td data-l="ORBS burned" class="r">'+fmt(l.v)+'</td><td data-l="Transaction">'+link("https://etherscan.io/tx/"+l.transactionHash,short(l.transactionHash))+'</td></tr>'}).join(""):'<tr><td colspan="5" class="empty">No burns yet. The first weekly burn will appear here after it is executed.</td></tr>';
+ $("blockinfo").innerHTML="Data read from Ethereum at block "+link("https://etherscan.io/block/"+head,head.toLocaleString("en-US"));
+ $("netdot").className="dot ok";
+}
+function weekStart(now){var d=new Date(now);var m=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())-((d.getUTCDay()+6)%7)*DAY;return m-WEEK}
+function twap(prices,s,e){var area=0,cur=s,cnt=0,gap=0,used=[];for(var i=0;i<prices.length;i++){var u=prices[i],d=prices[i+1];if(!d||d[0]<=s||u[0]>=e)continue;var a=Math.max(s,u[0]),b=Math.min(e,d[0]),g=d[0]-u[0];gap=Math.max(gap,g);if(a!==cur||g>MAXGAP)return{ok:false,count:cnt,gap:gap};area+=u[1]*(b-a);cnt++;cur=b;used.push(u);if(cur===e){used.push(d);break}}if(cur!==e)return{ok:false,count:cnt,gap:gap};return{ok:true,avg:area/(e-s),count:cnt,gap:gap,used:used}}
+function chart(r,s,e){var el=$("chart"),W=640,H=240,P=8,pts=r.used.filter(function(p){return p[0]>=s&&p[0]<=e});var ys=pts.map(function(p){return p[1]}).concat([r.avg]),mn=Math.min.apply(0,ys),mx=Math.max.apply(0,ys),pad=(mx-mn)*.12||mx*.01;mn-=pad;mx+=pad;
+ function X(t){return P+(t-s)/(e-s)*(W-2*P)}function Y(v){return H-22-(v-mn)/(mx-mn)*(H-40)}
+ var line=pts.map(function(p){return X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1)}).join(" ");var g="";
+ for(var k=0;k<=7;k++){var x=X(s+k*DAY);g+='<line x1="'+x+'" x2="'+x+'" y1="8" y2="'+(H-22)+'" stroke="#e2e2e2"/>'+(k<7?'<text x="'+(x+4)+'" y="'+(H-6)+'" font-size="10" fill="#59595a">'+["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][k]+'</text>':"")}
+ el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+g+'<polyline points="'+line+'" fill="none" stroke="#3346f2" stroke-width="1.6" vector-effect="non-scaling-stroke"/><line x1="'+P+'" x2="'+(W-P)+'" y1="'+Y(r.avg)+'" y2="'+Y(r.avg)+'" stroke="#da88de" stroke-width="2" stroke-dasharray="6 5" vector-effect="non-scaling-stroke"/></svg>'}
+async function pricing(){
+ var s=weekStart(Date.now()),e=s+WEEK,days=Math.ceil((Date.now()-s+MAXGAP)/DAY)+1;
+ var url="https://api.coingecko.com/api/v3/coins/orbs/market_chart?vs_currency=usd&days="+days+"&precision=full";
+ $("weeklbl").textContent=d10(s)+" to "+d10(e)+" · Monday 00:00 UTC";
+ $("srclink").href=url;
+ var key="orbsburn:cg:"+s,cached=null,data=null,stale=false;try{cached=JSON.parse(sessionStorage.getItem(key)||"null")}catch(x){}
+ if(cached&&Date.now()-cached.at<15*60e3)data=cached.prices;
+ else{try{var ctl=new AbortController(),t=setTimeout(function(){ctl.abort()},20000);var r=await fetch(url,{credentials:"omit",signal:ctl.signal,headers:{Accept:"application/json"}});clearTimeout(t);if(!r.ok)throw new Error("HTTP "+r.status);var j=await r.json();if(!j||!Array.isArray(j.prices))throw new Error("no prices");data=j.prices.filter(function(p){return p[0]>=s-MAXGAP&&p[0]<=e+MAXGAP});try{sessionStorage.setItem(key,JSON.stringify({at:Date.now(),prices:data}))}catch(x){}}
+  catch(err){if(cached){data=cached.prices;stale=true}else throw err}}
+ var res=twap(data,s,e);
+ $("obs").textContent=String(res.count);$("gap").textContent=(res.gap/3600e3).toFixed(1)+" hours";
+ if(!res.ok){$("twap").textContent="Not available";$("cov").textContent="Incomplete";$("pricestatus").textContent="The price observations for this week do not pass the coverage check.";return}
+ $("twap").textContent="$"+res.avg.toFixed(6);$("cov").textContent="Complete";
+ $("pricestatus").textContent="Source: CoinGecko ORBS/USD hourly observations"+(stale?" (showing the last loaded response; refresh failed)":"")+".";
+ chart(res,s,e)}
+chain().catch(function(e){console.warn("chain",e);$("netdot").className="dot bad";$("rows").innerHTML='<tr><td colspan="5" class="empty">Burn history could not be loaded right now. Refresh to try again.</td></tr>';["burned","pool","latest","count"].forEach(function(i){$(i).textContent="Unavailable"})});
+pricing().catch(function(e){console.warn("pricing",e);$("twap").textContent="Unavailable";$("pricestatus").textContent="The price source could not be reached right now. Refresh later to try again.";["obs","gap","cov"].forEach(function(i){$(i).textContent="…"})});
+document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest(".copy");if(!b)return;var t=b.getAttribute("data-copy");var done=function(){b.textContent="Copied";setTimeout(function(){b.textContent="Copy"},1400)};if(navigator.clipboard)navigator.clipboard.writeText(t).then(done,function(){});});
+var RM=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+(function burn(){var cv=$("embers"),hero=$("hero");if(!cv)return;var cx=cv.getContext("2d"),W=0,H=0,B=0,dpr=1,ps=[],raf=0,vis=true,onscreen=true,last=0,T0=0,PER=24000,MAXP=34;
+function size(){dpr=Math.min(window.devicePixelRatio||1,2);W=hero.clientWidth;H=hero.clientHeight;cv.width=W*dpr|0;cv.height=H*dpr|0;cx.setTransform(dpr,0,0,dpr,0,0);var st=hero.querySelector(".stats");B=Math.min(H,st?st.offsetTop+40:H*.6);MAXP=W<700?18:34;if(ps.length>MAXP)ps.length=MAXP}
+function nz(y,t){return Math.sin(y*.021+t*.00031)*14+Math.sin(y*.047-t*.00052+1.7)*7+Math.sin(y*.11+t*.0009+.4)*3}
+function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2}
+function state(t){var c=Math.min(1,Math.max(0,t/PER)),p=-.06+1.18*ease(c);return{x:p*W,fade:1}}
+function front(t,X){var pts=[],n=Math.ceil(B/8)+1;for(var i=0;i<=n;i++){var y=i*B/n;pts.push([X+nz(y,t)-y*.18,y])}return pts}
+function path(pts){cx.beginPath();cx.moveTo(pts[0][0],pts[0][1]);for(var i=1;i<pts.length;i++)cx.lineTo(pts[i][0],pts[i][1])}
+var CT=0;function draw(t,dt){CT=t;var s=state(t),pts=front(t,s.x);cx.clearRect(0,0,W,H);cx.globalCompositeOperation="source-over";
+if(s.x>-40){cx.globalAlpha=s.fade;path(pts);cx.lineTo(0,B);cx.lineTo(0,0);cx.closePath();var g=cx.createLinearGradient(s.x-260,0,s.x+20,0);g.addColorStop(0,"rgba(70,52,46,.30)");g.addColorStop(.7,"rgba(104,70,54,.38)");g.addColorStop(.93,"rgba(170,92,52,.5)");g.addColorStop(1,"rgba(235,120,60,.5)");cx.fillStyle=g;cx.fill();
+var L=[[26,"rgba(245,158,11,.10)"],[12,"rgba(255,122,47,.18)"],[5,"rgba(255,122,47,.45)"],[2.2,"rgba(245,158,11,.9)"],[.9,"rgba(240,88,122,.85)"]];cx.lineJoin="round";cx.lineCap="round";for(var k=0;k<L.length;k++){path(pts);cx.lineWidth=L[k][0];cx.strokeStyle=L[k][1];cx.stroke()}
+if(dt&&ps.length<MAXP&&Math.random()<dt*(t>=PER?.02:.012)){var q=t>=PER?[Math.random()*W,B*(.15+Math.random()*.85)]:pts[(Math.random()*pts.length)|0],a=Math.random()<.6;ps.push({x:q[0],y:q[1],vx:-.01+Math.random()*.03,vy:-(.012+Math.random()*.03),r:a?.7+Math.random()*.9:.5+Math.random()*.7,l:1,d:.00025+Math.random()*.0003,e:a})}}
+cx.globalAlpha=1;for(var i=ps.length-1;i>=0;i--){var p=ps[i];if(dt){p.x+=p.vx*dt+Math.sin((p.y+t*.05)*.02)*.08;p.y+=p.vy*dt;p.l-=p.d*dt}if(p.l<=0||p.y<-4){ps.splice(i,1);continue}cx.globalAlpha=Math.min(1,p.l*1.6)*(p.e?.5:.3);cx.fillStyle=p.e?(p.l>.5?"#a8501f":"#7a3b1c"):"#6b5a52";cx.beginPath();cx.arc(p.x,p.y,p.r,0,6.283);cx.fill()}
+cx.globalAlpha=1;cx.globalCompositeOperation="destination-in";var m=cx.createLinearGradient(0,0,0,B);m.addColorStop(0,"rgba(0,0,0,1)");m.addColorStop(.55,"rgba(0,0,0,.9)");m.addColorStop(1,"rgba(0,0,0,0)");cx.fillStyle=m;cx.fillRect(0,0,W,H);cx.globalCompositeOperation="source-over"}
+function frame(t){raf=0;var dt=Math.min(50,t-(last||t));last=t;var e=t-T0;draw(e,dt);go()}
+var FZ=false;function go(){if(!raf&&vis&&onscreen&&!RM&&!FZ)raf=requestAnimationFrame(frame)}function stop(){if(raf)cancelAnimationFrame(raf);raf=0;last=0}
+size();T0=performance.now();draw(RM?PER:0,0);window.__burnT=function(c){FZ=true;stop();ps=[];for(var j=0;j<40;j++)draw(PER*c-(40-j)*30,30);draw(PER*c,0)};
+window.addEventListener("resize",function(){size();if(RM||!raf)draw(CT,0)});if(RM)return;
+document.addEventListener("visibilitychange",function(){vis=!document.hidden;vis?go():stop()});
+if("IntersectionObserver"in window)new IntersectionObserver(function(es){onscreen=es[0].isIntersecting;onscreen?go():stop()}).observe(hero);go()})();
+(function flow(){var f=$("flow");if(!f)return;var bx=f.querySelectorAll(".fbox"),lbl=$("fstep"),n=bx.length,k=0,tm=0,on=false,fl=f.querySelector(".fl"),cs=[];
+function meas(){var r=fl.getBoundingClientRect();cs=[];for(var j=0;j<n;j++){var b=bx[j].querySelector("i").getBoundingClientRect();cs.push(b.top+b.height/2-r.top)}fl.style.setProperty("--t0",cs[0]+"px");fl.style.setProperty("--len",(cs[n-1]-cs[0])+"px");fl.style.setProperty("--fill",((cs[k]||cs[0])-cs[0])+"px")}
+meas();window.addEventListener("resize",meas);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(meas);
+function show(i){for(var j=0;j<n;j++){bx[j].classList.toggle("cur",j===i);bx[j].classList.toggle("done",j<i)}lbl.textContent="Step "+(i+1)+" of "+n;k=i;if(cs.length)fl.style.setProperty("--fill",(cs[i]-cs[0])+"px")}
+if(RM){f.classList.add("static");lbl.textContent=n+" steps";return}
+f.classList.add("anim");show(0);function tick(){k=(k+1)%n;show(k);tm=setTimeout(tick,k===n-1?3200:2000)}
+if("IntersectionObserver"in window)new IntersectionObserver(function(es){var v=es[0].isIntersecting;if(v&&!on){on=true;tm=setTimeout(tick,2000)}else if(!v&&on){on=false;clearTimeout(tm)}},{threshold:.35}).observe(f);else tm=setTimeout(tick,2000)})();
+})();

@@ -72,6 +72,17 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [...expandedRedirects(), ...expandedTemporaryRedirects()]
   },
+  /**
+   * The OIP-10 burn tracker is a self-contained static page in
+   * `public/oip10-burn/` (its own HTML, CSS, JS and meta CSP, no site layout).
+   * Next serves files from `public/` by exact path only, so the directory URL
+   * needs mapping to its index.html. The slashless form is already 308ed to
+   * `/oip10-burn/` by `trailingSlash: true`, which also keeps the page's
+   * relative asset URLs (`./app.js`) resolving inside the directory.
+   */
+  async rewrites() {
+    return [{ source: '/oip10-burn/', destination: '/oip10-burn/index.html' }]
+  },
 }
 
 export default withNextIntl(nextConfig)
