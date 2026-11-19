@@ -1,6 +1,13 @@
 (function(){"use strict";
-var RPC="https://rpcman.orbs.network/rpc?key=f74174cb04a077391271c4e660001a54346a17cf7f872bb340e8f327f23320b8&chainId=1&appId=multisig",MS="0x189a5caf060b94961f0d4f3e56ad0d678ebb6c12",TK="0xff56cc6b1e6ded347aa0b7676c85ab0b3d08b0fa",DEAD="0x000000000000000000000000000000000000dEaD";
-var DEPLOY=26435746,CHUNK=7200,TOTAL=507540603n,DAY=864e5,WEEK=7*DAY,MAXGAP=2*3600e3;
+// TODO: replace with a dedicated rpcman appId/key for the burn tracker, restricted to www.orbs.com
+var BURN_TRACKER_RPC_URL="https://rpcman.orbs.network/rpc?key=f74174cb04a077391271c4e660001a54346a17cf7f872bb340e8f327f23320b8&chainId=1&appId=multisig";
+var RPC=BURN_TRACKER_RPC_URL,MS="0x189a5caf060b94961f0d4f3e56ad0d678ebb6c12",TK="0xff56cc6b1e6ded347aa0b7676c85ab0b3d08b0fa",DEAD="0x000000000000000000000000000000000000dEaD";
+var DEPLOY=26435746,CHUNK=7200,TOTAL=507540603n,DAY=864e5,WEEK=7*DAY,MAXGAP=2*3600e3,CONC=4,RETRIES=3;
+var HASH=/^0x[0-9a-fA-F]{64}$/,HEX=/^0x[0-9a-fA-F]{1,64}$/,WORD=/^0x[0-9a-fA-F]{64}$/;
+function hex(v,re){if(typeof v!=="string"||!(re||HEX).test(v))throw new Error("bad RPC value");return v}
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
+async function retry(fn){for(var a=0;;a++){try{return await fn()}catch(e){if(a>=RETRIES)throw e;await sleep(400*Math.pow(2,a))}}}
+async function limit(tasks,n){var out=new Array(tasks.length),i=0;async function worker(){while(i<tasks.length){var k=i++;out[k]=await retry(tasks[k])}}var ws=[];for(var w=0;w<Math.min(n,tasks.length);w++)ws.push(worker());await Promise.all(ws);return out}
 var TOPIC="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 function $(i){return document.getElementById(i)}
 function pad(a){return "0x"+"0".repeat(24)+a.slice(2).toLowerCase()}
@@ -10,27 +17,30 @@ function fmt(wei){var w=BigInt(wei),i=w/10n**18n,f=(w%10n**18n)*100n/10n**18n;va
 function short(a){return a.slice(0,6)+"…"+a.slice(-4)}
 function d10(ms){return new Date(ms).toISOString().slice(0,10)}
 var ARR='<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 2.5h6v6M9.5 2.5 2.5 9.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
-function link(h,t){return '<a class="xl" href="'+h+'" target="_blank" rel="noopener noreferrer">'+t+ARR+'</a>'}
+function link(h,t){var a=document.createElement("a");a.className="xl";a.href=h;a.target="_blank";a.rel="noopener noreferrer";a.textContent=t;a.insertAdjacentHTML("beforeend",ARR);return a}
+function td(lbl,cls){var c=document.createElement("td");c.setAttribute("data-l",lbl);if(cls)c.className=cls;return c}
 async function chain(){
- var head=parseInt(await rpc("eth_blockNumber",[]),16);var tag="0x"+head.toString(16);
+ var head=parseInt(hex(await rpc("eth_blockNumber",[])),16);var tag="0x"+head.toString(16);
  var res=await Promise.all([call(TK,"0x70a08231"+pad(MS).slice(2),tag)]);
- $("pool").textContent=fmt(res[0]);
- var logs=[],jobs=[];for(var f=DEPLOY;f<=head;f+=CHUNK){jobs.push(rpc("eth_getLogs",[{address:TK,fromBlock:"0x"+f.toString(16),toBlock:"0x"+Math.min(head,f+CHUNK-1).toString(16),topics:[TOPIC,pad(MS),pad(DEAD)]}]))}
- (await Promise.all(jobs)).forEach(function(l){logs=logs.concat(l)});
+ $("pool").textContent=fmt(hex(res[0],WORD));
+ var logs=[],jobs=[];for(var f=DEPLOY;f<=head;f+=CHUNK){(function(a,b){jobs.push(function(){return rpc("eth_getLogs",[{address:TK,fromBlock:"0x"+a.toString(16),toBlock:"0x"+b.toString(16),topics:[TOPIC,pad(MS),pad(DEAD)]}]).then(function(r){if(!Array.isArray(r))throw new Error("bad logs");return r})})})(f,Math.min(head,f+CHUNK-1))}
+ (await limit(jobs,CONC)).forEach(function(l){logs=logs.concat(l)});
+ logs.forEach(function(l){if(!l||typeof l!=="object")throw new Error("bad log");hex(l.transactionHash,HASH);hex(l.blockNumber);hex(l.logIndex);hex(l.data,WORD)});
  logs.sort(function(a,b){return parseInt(a.blockNumber,16)-parseInt(b.blockNumber,16)||parseInt(a.logIndex,16)-parseInt(b.logIndex,16)});
  var sum=0n;logs.forEach(function(l){l.v=BigInt(l.data);sum+=l.v});
  var bn=Array.from(new Set(logs.map(function(l){return l.blockNumber})));var ts={};
- await Promise.all(bn.map(function(b){return rpc("eth_getBlockByNumber",[b,false]).then(function(x){ts[b]=parseInt(x.timestamp,16)*1000})}));
+ await limit(bn.map(function(b){return function(){return rpc("eth_getBlockByNumber",[b,false]).then(function(x){if(!x)throw new Error("no block");ts[b]=parseInt(hex(x.timestamp),16)*1000})}}),CONC);
  $("burned").textContent=fmt(sum);$("count").textContent=String(logs.length);
  var pct=Number(sum*10000n/(TOTAL*10n**18n))/100;$("progbar").style.width=Math.min(100,pct)+"%";$("progtxt").textContent=pct.toFixed(2)+"% of 507,540,603 ORBS in the program";
- if(logs.length){var L=logs[logs.length-1];$("latest").innerHTML=fmt(L.v)+" <small>ORBS</small>";$("latesthint").innerHTML=d10(ts[L.blockNumber])+" UTC · "+link("https://etherscan.io/tx/"+L.transactionHash,"View transaction")}
+ if(logs.length){var L=logs[logs.length-1],sm=document.createElement("small");sm.textContent="ORBS";$("latest").textContent=fmt(L.v)+" ";$("latest").appendChild(sm);$("latesthint").textContent=d10(ts[L.blockNumber])+" UTC · ";$("latesthint").appendChild(link("https://etherscan.io/tx/"+L.transactionHash,"View transaction"))}
  else{$("latest").textContent="None yet";$("latesthint").textContent="The first weekly burn will appear here"}
- $("rows").innerHTML=logs.length?logs.slice().reverse().map(function(l){return '<tr><td data-l="Date">'+new Date(ts[l.blockNumber]).toISOString().slice(0,16).replace("T"," ")+'</td><td data-l="Pricing week"><span class="tag ph">[PLACEHOLDER]</span></td><td data-l="Price used"><span class="tag ph">[PLACEHOLDER]</span></td><td data-l="ORBS burned" class="r">'+fmt(l.v)+'</td><td data-l="Transaction">'+link("https://etherscan.io/tx/"+l.transactionHash,short(l.transactionHash))+'</td></tr>'}).join(""):'<tr><td colspan="5" class="empty">No burns yet. The first weekly burn will appear here after it is executed.</td></tr>';
- $("blockinfo").innerHTML="Data read from Ethereum at block "+link("https://etherscan.io/block/"+head,head.toLocaleString("en-US"));
+ var rows=$("rows");if(logs.length){var fr=document.createDocumentFragment();logs.slice().reverse().forEach(function(l){var tr=document.createElement("tr"),c=td("Date");c.textContent=new Date(ts[l.blockNumber]).toISOString().slice(0,16).replace("T"," ");tr.appendChild(c);c=td("Pricing week");c.innerHTML='<span class="tag ph">[PLACEHOLDER]</span>';tr.appendChild(c);c=td("Price used");c.innerHTML='<span class="tag ph">[PLACEHOLDER]</span>';tr.appendChild(c);c=td("ORBS burned","r");c.textContent=fmt(l.v);tr.appendChild(c);c=td("Transaction");c.appendChild(link("https://etherscan.io/tx/"+l.transactionHash,short(l.transactionHash)));tr.appendChild(c);fr.appendChild(tr)});rows.textContent="";rows.appendChild(fr)}else rows.innerHTML='<tr><td colspan="5" class="empty">No burns yet. The first weekly burn will appear here after it is executed.</td></tr>';
+ $("blockinfo").textContent="Data read from Ethereum at block ";$("blockinfo").appendChild(link("https://etherscan.io/block/"+head,head.toLocaleString("en-US")));
  $("netdot").className="dot ok";
 }
 function weekStart(now){var d=new Date(now);var m=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())-((d.getUTCDay()+6)%7)*DAY;return m-WEEK}
-function twap(prices,s,e){var area=0,cur=s,cnt=0,gap=0,used=[];for(var i=0;i<prices.length;i++){var u=prices[i],d=prices[i+1];if(!d||d[0]<=s||u[0]>=e)continue;var a=Math.max(s,u[0]),b=Math.min(e,d[0]),g=d[0]-u[0];gap=Math.max(gap,g);if(a!==cur||g>MAXGAP)return{ok:false,count:cnt,gap:gap};area+=u[1]*(b-a);cnt++;cur=b;used.push(u);if(cur===e){used.push(d);break}}if(cur!==e)return{ok:false,count:cnt,gap:gap};return{ok:true,avg:area/(e-s),count:cnt,gap:gap,used:used}}
+function okObs(p){return Array.isArray(p)&&p.length===2&&typeof p[0]==="number"&&isFinite(p[0])&&typeof p[1]==="number"&&isFinite(p[1])&&p[1]>0}
+function twap(prices,s,e){if(!Array.isArray(prices)||!prices.every(okObs))return{ok:false,count:0,gap:0};var area=0,cur=s,cnt=0,gap=0,used=[];for(var i=0;i<prices.length;i++){var u=prices[i],d=prices[i+1];if(!d||d[0]<=s||u[0]>=e)continue;var a=Math.max(s,u[0]),b=Math.min(e,d[0]),g=d[0]-u[0];gap=Math.max(gap,g);if(a!==cur||g>MAXGAP)return{ok:false,count:cnt,gap:gap};area+=u[1]*(b-a);cnt++;cur=b;used.push(u);if(cur===e){used.push(d);break}}if(cur!==e)return{ok:false,count:cnt,gap:gap};return{ok:true,avg:area/(e-s),count:cnt,gap:gap,used:used}}
 function chart(r,s,e){var el=$("chart"),W=640,H=240,P=8,pts=r.used.filter(function(p){return p[0]>=s&&p[0]<=e});var ys=pts.map(function(p){return p[1]}).concat([r.avg]),mn=Math.min.apply(0,ys),mx=Math.max.apply(0,ys),pad=(mx-mn)*.12||mx*.01;mn-=pad;mx+=pad;
  function X(t){return P+(t-s)/(e-s)*(W-2*P)}function Y(v){return H-22-(v-mn)/(mx-mn)*(H-40)}
  var line=pts.map(function(p){return X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1)}).join(" ");var g="";
@@ -43,7 +53,7 @@ async function pricing(){
  $("srclink").href=url;
  var key="orbsburn:cg:"+s,cached=null,data=null,stale=false;try{cached=JSON.parse(sessionStorage.getItem(key)||"null")}catch(x){}
  if(cached&&Date.now()-cached.at<15*60e3)data=cached.prices;
- else{try{var ctl=new AbortController(),t=setTimeout(function(){ctl.abort()},20000);var r=await fetch(url,{credentials:"omit",signal:ctl.signal,headers:{Accept:"application/json"}});clearTimeout(t);if(!r.ok)throw new Error("HTTP "+r.status);var j=await r.json();if(!j||!Array.isArray(j.prices))throw new Error("no prices");data=j.prices.filter(function(p){return p[0]>=s-MAXGAP&&p[0]<=e+MAXGAP});try{sessionStorage.setItem(key,JSON.stringify({at:Date.now(),prices:data}))}catch(x){}}
+ else{try{var ctl=new AbortController(),t=setTimeout(function(){ctl.abort()},20000);var r=await fetch(url,{credentials:"omit",signal:ctl.signal,headers:{Accept:"application/json"}});clearTimeout(t);if(!r.ok)throw new Error("HTTP "+r.status);var j=await r.json();if(!j||!Array.isArray(j.prices))throw new Error("no prices");data=j.prices.filter(function(p){return !Array.isArray(p)||typeof p[0]!=="number"||!isFinite(p[0])||(p[0]>=s-MAXGAP&&p[0]<=e+MAXGAP)});if(data.every(okObs))try{sessionStorage.setItem(key,JSON.stringify({at:Date.now(),prices:data}))}catch(x){}}
   catch(err){if(cached){data=cached.prices;stale=true}else throw err}}
  var res=twap(data,s,e);
  $("obs").textContent=String(res.count);$("gap").textContent=(res.gap/3600e3).toFixed(1)+" hours";
