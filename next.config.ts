@@ -15,6 +15,22 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 
   Next transpiles this itself; see `next-config-ts/transpile-config`.
 */
+// Same policy as the meta CSP in public/oip10-burn/index.html, plus
+// frame-ancestors (header only).
+const BURN_TRACKER_CSP = [
+  "default-src 'none'",
+  "script-src 'self'",
+  "style-src 'self' https://fonts.googleapis.com",
+  'font-src https://fonts.gstatic.com',
+  "img-src 'self' data:",
+  "connect-src 'self' https://rpcman.orbs.network",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-src 'none'",
+  "frame-ancestors 'none'",
+].join('; ')
+
 const nextConfig: NextConfig = {
   // Production serves post URLs with a trailing slash (`/Some-Post/`), and
   // every indexed URL and inbound link uses that form. Next's default would
@@ -82,6 +98,43 @@ const nextConfig: NextConfig = {
    */
   async rewrites() {
     return [{ source: '/oip10-burn/', destination: '/oip10-burn/index.html' }]
+  },
+  /**
+   * Security headers for the OIP-10 burn tracker only; the rest of the site
+   * is untouched. Header rules match the request path before rewrites, so
+   * `/oip10-burn/` (rewritten to index.html) and its assets are both covered.
+   *
+   * The CSP repeats the page's meta CSP (kept as defence in depth) and adds
+   * `frame-ancestors`, which only works as a header. HSTS is already sent by
+   * Vercel and is deliberately not set here. No `noindex`: the page is public.
+   * CORP `same-origin` is safe: it governs who may embed OUR responses, not
+   * the Google Fonts the page loads. The price route keeps its own
+   * Cache-Control and gets no CORS header (it is consumed same-origin only).
+   */
+  async headers() {
+    const burnTrackerHeaders = [
+      { key: 'Content-Security-Policy', value: BURN_TRACKER_CSP },
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'Referrer-Policy', value: 'no-referrer' },
+      { key: 'X-Frame-Options', value: 'DENY' },
+      {
+        key: 'Permissions-Policy',
+        value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()',
+      },
+      { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+      { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+    ]
+    return [
+      { source: '/oip10-burn', headers: burnTrackerHeaders },
+      { source: '/oip10-burn/:path*', headers: burnTrackerHeaders },
+      {
+        source: '/api/oip10-burn/:path*',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+        ],
+      },
+    ]
   },
 }
 
