@@ -52,7 +52,7 @@ h2{font-size:clamp(1.7rem,1rem + 1.8vw,2.5rem)}h3{font-size:1.15rem;letter-spaci
 .tbl{width:100%;border-collapse:collapse;font-size:14px}
 .tbl th{text-align:left;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.14em;color:var(--mu);padding:14px 18px;border-bottom:1px solid var(--ln);white-space:nowrap}
 .tbl td{padding:14px 18px;border-bottom:1px solid var(--ln);font-variant-numeric:tabular-nums}.tbl tr:last-child td{border-bottom:0}
-.r,.tbl th.r,.tbl td.r{text-align:right}.tbl td.empty{text-align:center;padding:44px 18px;color:var(--fg2)}
+.tbl td.empty{text-align:center;padding:44px 18px;color:var(--fg2)}
 .price-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:16px}
 .pcard,.chart{background:var(--bg);border:1px solid var(--ln);padding:22px;margin:0}
 .kv{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--ln);font-size:14px;color:var(--fg2)}.kv:first-child{padding-top:0}
