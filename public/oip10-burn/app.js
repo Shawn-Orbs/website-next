@@ -47,11 +47,7 @@ function chart(r,s,e){var el=$("chart"),W=640,H=240,P=8,pts=r.used.filter(functi
  function X(t){return P+(t-s)/(e-s)*(W-2*P)}function Y(v){return H-22-(v-mn)/(mx-mn)*(H-40)}
  var line=pts.map(function(p){return X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1)}).join(" ");var g="";
  for(var k=0;k<=7;k++){var x=X(s+k*DAY);g+='<line x1="'+x+'" x2="'+x+'" y1="8" y2="'+(H-22)+'" stroke="#e2e2e2"/>'+(k<7?'<text x="'+(x+4)+'" y="'+(H-6)+'" font-size="10" fill="#59595a">'+["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][k]+'</text>':"")}
- el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+g+'<polyline points="'+line+'" fill="none" stroke="#3346f2" stroke-width="1.6" vector-effect="non-scaling-stroke"/><line x1="'+P+'" x2="'+(W-P)+'" y1="'+Y(r.avg)+'" y2="'+Y(r.avg)+'" stroke="#da88de" stroke-width="2" stroke-dasharray="6 5" vector-effect="non-scaling-stroke"/></svg>';
- var pv=pts.map(function(p){return p[1]}),hi=Math.max.apply(0,pv),lo=Math.min.apply(0,pv),usd=function(v){return "$"+v.toFixed(6)};
- function lab(cls,txt,v,below){var sp=document.createElement("span");sp.className="cl "+cls;sp.textContent=txt+" "+usd(v);sp.style.top="calc("+(Y(v)/H*100).toFixed(2)+"% "+(below?"+ 3px":"- 17px")+")";el.appendChild(sp)}
- lab("hi","High",hi,false);lab("lo","Low",lo,true);lab("av","Average",r.avg,r.avg-lo<(hi-lo)/2?false:true);
- var sum="Hourly ORBS/USD price over the pricing week. High "+usd(hi)+", low "+usd(lo)+", time weighted average "+usd(r.avg)+".";el.setAttribute("aria-label",sum);el.setAttribute("title",sum)}
+ el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+g+'<polyline points="'+line+'" fill="none" stroke="#3346f2" stroke-width="1.6" vector-effect="non-scaling-stroke"/><line x1="'+P+'" x2="'+(W-P)+'" y1="'+Y(r.avg)+'" y2="'+Y(r.avg)+'" stroke="#da88de" stroke-width="2" stroke-dasharray="6 5" vector-effect="non-scaling-stroke"/></svg>'}
 async function pricing(){
  var s=weekStart(Date.now()),e=s+WEEK,days=Math.ceil((Date.now()-s+MAXGAP)/DAY)+1;
  var url="https://api.coingecko.com/api/v3/coins/orbs/market_chart?vs_currency=usd&days="+days+"&precision=full";
