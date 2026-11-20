@@ -25,7 +25,7 @@ import { NextResponse } from 'next/server'
  */
 
 const DEFAULT_BASE_URL = 'https://pro-api.coingecko.com'
-const PATH = '/api/v3/coins/orbs/market_chart?vs_currency=usd&days=8&precision=full'
+const PATH = '/api/v3/coins/orbs/market_chart?vs_currency=usd&days=15&precision=full'
 const TIMEOUT_MS = 10_000
 const S_MAXAGE = 1800
 const SWR = 3600
@@ -66,7 +66,10 @@ export async function GET() {
   try {
     const res = await fetch(base + PATH, {
       headers: { Accept: 'application/json', 'x-cg-pro-api-key': key },
-      cache: 'no-store',
+      // Next data cache: bounds paid upstream calls however the route is requested
+      // (Authorization-header requests skip the CDN), and a failed revalidation
+      // keeps serving the last good copy.
+      next: { revalidate: S_MAXAGE },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
     if (!res.ok) return error(503, `Price source unavailable (HTTP ${res.status})`)
