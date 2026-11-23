@@ -26,27 +26,6 @@ import { NextResponse } from 'next/server'
 
 const DEFAULT_BASE_URL = 'https://pro-api.coingecko.com'
 const PATH = '/api/v3/coins/orbs/market_chart?vs_currency=usd&days=15&precision=full'
-// Per burn pricing weeks: ?week=YYYY-MM-DD (a Monday, 00:00 UTC). Only that
-// validated date is used, to build a fixed range URL, so this is still not a proxy.
-const RANGE_PATH = '/api/v3/coins/orbs/market_chart/range?vs_currency=usd&precision=full'
-const DAY_MS = 86_400_000
-const WEEK_MS = 7 * DAY_MS
-const PAD_MS = 2 * 3600_000
-const FIRST_WEEK = Date.UTC(2026, 9, 5) // earliest pricing week served (Mon Oct 5 2026)
-const CLOSED_S_MAXAGE = 86400
-const CLOSED_SWR = 604800
-
-/** Returns the Monday start (ms) for a valid ?week=, null when absent, NaN when invalid. */
-function parseWeek(req: Request): number | null {
-  const w = new URL(req.url).searchParams.get('week')
-  if (w === null) return null
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(w)) return NaN
-  const s = Date.parse(w + 'T00:00:00Z')
-  if (!Number.isFinite(s) || new Date(s).toISOString().slice(0, 10) !== w) return NaN
-  if (new Date(s).getUTCDay() !== 1) return NaN
-  if (s < FIRST_WEEK || s > Date.now()) return NaN
-  return s
-}
 const TIMEOUT_MS = 10_000
 const S_MAXAGE = 1800
 const SWR = 3600
@@ -77,34 +56,20 @@ function validPrices(body: unknown): body is { prices: [number, number][] } {
   )
 }
 
-export async function GET(req: Request) {
+export async function GET() {
   const key = process.env.COINGECKO_API_KEY
   if (!key) return error(503, 'Price source is not configured')
 
   const base = process.env.COINGECKO_BASE_URL || DEFAULT_BASE_URL
-  const week = parseWeek(req)
-  if (week !== null && Number.isNaN(week)) return error(400, 'Invalid week')
-  // A week counts as closed once its end plus padding is over an hour in the past.
-  const closed = week !== null && Date.now() > week + WEEK_MS + PAD_MS + 3600_000
-  const upstream =
-    week === null
-      ? base + PATH
-      : base +
-        RANGE_PATH +
-        '&from=' +
-        Math.floor((week - PAD_MS) / 1000) +
-        '&to=' +
-        Math.floor((week + WEEK_MS + PAD_MS) / 1000)
-  const maxAge = closed ? CLOSED_S_MAXAGE : S_MAXAGE
 
   let body: unknown
   try {
-    const res = await fetch(upstream, {
+    const res = await fetch(base + PATH, {
       headers: { Accept: 'application/json', 'x-cg-pro-api-key': key },
       // Next data cache: bounds paid upstream calls however the route is requested
       // (Authorization-header requests skip the CDN), and a failed revalidation
       // keeps serving the last good copy.
-      next: { revalidate: maxAge },
+      next: { revalidate: S_MAXAGE },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
     if (!res.ok) return error(503, `Price source unavailable (HTTP ${res.status})`)
@@ -120,9 +85,7 @@ export async function GET(req: Request) {
     { prices: body.prices.map((p) => [p[0], p[1]]) },
     {
       headers: {
-        'Cache-Control': closed
-          ? `public, s-maxage=${CLOSED_S_MAXAGE}, stale-while-revalidate=${CLOSED_SWR}`
-          : `public, s-maxage=${S_MAXAGE}, stale-while-revalidate=${SWR}`,
+        'Cache-Control': `public, s-maxage=${S_MAXAGE}, stale-while-revalidate=${SWR}`,
       },
     }
   )
