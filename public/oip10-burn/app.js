@@ -26,6 +26,7 @@ async function chain(){
  var logs=[],jobs=[];for(var f=DEPLOY;f<=head;f+=CHUNK){(function(a,b){jobs.push(function(){return rpc("eth_getLogs",[{address:TK,fromBlock:"0x"+a.toString(16),toBlock:"0x"+b.toString(16),topics:[TOPIC,pad(MS),pad(DEAD)]}]).then(function(r){if(!Array.isArray(r))throw new Error("bad logs");return r})})})(f,Math.min(head,f+CHUNK-1))}
  (await limit(jobs,CONC)).forEach(function(l){logs=logs.concat(l)});
  logs.forEach(function(l){if(!l||typeof l!=="object")throw new Error("bad log");hex(l.transactionHash,HASH);hex(l.blockNumber);hex(l.logIndex);hex(l.data,WORD)});
+ var T0=TOPIC.toLowerCase(),T1=pad(MS),T2=pad(DEAD),TA=TK.toLowerCase();logs=logs.filter(function(l){var t=l.topics;return typeof l.address==="string"&&l.address.toLowerCase()===TA&&Array.isArray(t)&&t.length===3&&typeof t[0]==="string"&&t[0].toLowerCase()===T0&&typeof t[1]==="string"&&t[1].toLowerCase()===T1&&typeof t[2]==="string"&&t[2].toLowerCase()===T2&&l.removed!==true});
  logs.sort(function(a,b){return parseInt(a.blockNumber,16)-parseInt(b.blockNumber,16)||parseInt(a.logIndex,16)-parseInt(b.logIndex,16)});
  var sum=0n;logs.forEach(function(l){l.v=BigInt(l.data);sum+=l.v});
  var bn=Array.from(new Set(logs.map(function(l){return l.blockNumber})));var ts={};
