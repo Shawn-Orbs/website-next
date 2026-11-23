@@ -43,7 +43,7 @@ async function chain(){
  slot("blockinfo",function(){var bi=$("blockinfo");bi.textContent=t("blockPre");bi.appendChild(link("https://etherscan.io/block/"+head,head.toLocaleString("en-US")));var post=t("blockPost");if(post)bi.appendChild(document.createTextNode(post))});
  $("netdot").className="dot ok";
 }
-function weekStart(now){var d=new Date(now);var m=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())-((d.getUTCDay()+6)%7)*DAY;return m-WEEK}
+function weekStart(now){var d=new Date(now);var m=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())-((d.getUTCDay()+5)%7)*DAY;return m-WEEK}
 function okObs(p){return Array.isArray(p)&&p.length===2&&typeof p[0]==="number"&&isFinite(p[0])&&typeof p[1]==="number"&&isFinite(p[1])&&p[1]>0}
 function okSeries(p){if(!Array.isArray(p)||!p.every(okObs))return false;for(var i=1;i<p.length;i++)if(!(p[i][0]>p[i-1][0]))return false;return true}
 function twap(prices,s,e){if(!okSeries(prices))return{ok:false,count:0,gap:0};var area=0,cur=s,cnt=0,gap=0,used=[];for(var i=0;i<prices.length;i++){var u=prices[i],d=prices[i+1];if(!d||d[0]<=s||u[0]>=e)continue;var a=Math.max(s,u[0]),b=Math.min(e,d[0]),g=d[0]-u[0];gap=Math.max(gap,g);if(a!==cur||g>MAXGAP)return{ok:false,count:cnt,gap:gap};area+=u[1]*(b-a);cnt++;cur=b;used.push(u);if(cur===e){used.push(d);break}}if(cur!==e)return{ok:false,count:cnt,gap:gap,tail:cnt>0,cur:cur};var avg=area/(e-s);if(!isFinite(avg)||!(avg>0))return{ok:false,count:cnt,gap:gap};return{ok:true,avg:avg,count:cnt,gap:gap,used:used}}

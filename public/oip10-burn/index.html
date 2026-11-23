@@ -48,14 +48,14 @@
 <div class="head"><div><p class="eyebrow">[METHODOLOGY]</p><h2 data-i18n="methH">How the weekly amount is calculated</h2></div></div>
 <div class="meth">
 <ol class="mlist">
-<li><span><b data-i18n="m1b">Price the week.</b> <span data-i18n="m1a">Each Monday to Monday week (UTC) uses hourly ORBS/USD prices from </span><a class="xl" href="https://www.coingecko.com/en/coins/orbs" target="_blank" rel="noopener noreferrer">CoinGecko<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 2.5h6v6M9.5 2.5 2.5 9.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></a><span data-i18n="m1c">, with no gap over 2 hours.</span></span></li>
+<li><span><b data-i18n="m1b">Price the week.</b> <span data-i18n="m1a">Each Tuesday to Tuesday week (UTC) uses hourly ORBS/USD prices from </span><a class="xl" href="https://www.coingecko.com/en/coins/orbs" target="_blank" rel="noopener noreferrer">CoinGecko<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 2.5h6v6M9.5 2.5 2.5 9.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></a><span data-i18n="m1c">, with no gap over 2 hours.</span></span></li>
 <li><span><b data-i18n="m2b">Average it.</b> <span data-i18n="m2">The hourly prices give one time weighted average price for the week.</span></span></li>
 <li><span><b data-i18n="m3b">Set the amount.</b> <span data-i18n="m3">ORBS burned = weekly USD reference ÷ average price. Lower price, more ORBS. Higher price, fewer ORBS.</span></span></li>
 <li><span><b data-i18n="m4b">Burn it.</b> <span data-i18n="m4a">The </span><a class="xl" href="https://etherscan.io/address/0x189a5caf060b94961f0d4f3e56ad0d678ebb6c12" target="_blank" rel="noopener noreferrer"><span data-i18n="m4l">Orbs burn controller</span><svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 2.5h6v6M9.5 2.5 2.5 9.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></a><span data-i18n="m4c"> sends the ORBS to the dead address. Each burn shows in the history above.</span></span></li>
 </ol>
 <aside class="flow" id="flow"><div class="fhead"><p class="lbl" data-i18n="flowLbl">Worked flow</p><p class="fstep" id="fstep" aria-live="off">Step 1 of 4</p></div>
 <ol class="fl">
-<li class="fbox"><i>1</i><span data-i18n="f1">Hourly ORBS/USD prices, Monday to Monday UTC, no gap over 2 hours</span></li>
+<li class="fbox"><i>1</i><span data-i18n="f1">Hourly ORBS/USD prices, Tuesday to Tuesday UTC, no gap over 2 hours</span></li>
 <li class="fbox"><i>2</i><span data-i18n="f2">Time weighted average price (P)</span></li>
 <li class="fbox"><i>3</i><span data-i18n="f3">ORBS amount = weekly USD reference ÷ P</span></li>
 <li class="fbox"><i>4</i><span data-i18n="f4">ORBS sent to the dead address, recorded on Ethereum</span></li>
