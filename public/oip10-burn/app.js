@@ -9,6 +9,9 @@ async function retry(fn){for(var a=0;;a++){try{return await fn()}catch(e){if(a>=
 async function limit(tasks,n){var out=new Array(tasks.length),i=0;async function worker(){while(i<tasks.length){var k=i++;out[k]=await retry(tasks[k])}}var ws=[];for(var w=0;w<Math.min(n,tasks.length);w++)ws.push(worker());await Promise.all(ws);return out}
 var TOPIC="0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 function $(i){return document.getElementById(i)}
+var I18N=window.OIP10I18N||{t:function(k,p){return k},on:function(){},lang:function(){return"en"},date:function(ms){return new Date(ms).toISOString().slice(0,16).replace("T"," ")+" UTC"}};function t(k,p){return I18N.t(k,p)}
+// Language switch: every slot re-renders its text from data already in memory (no new RPC or price requests).
+var SLOTS={};function slot(n,fn){SLOTS[n]=fn;fn()}I18N.on(function(){Object.keys(SLOTS).forEach(function(n){SLOTS[n]()})});
 function pad(a){return "0x"+"0".repeat(24)+a.slice(2).toLowerCase()}
 var rid=0;function rpc(m,p){var ctl=new AbortController(),t=setTimeout(function(){ctl.abort()},RPCMS);return fetch(RPC,{method:"POST",credentials:"omit",signal:ctl.signal,headers:{"content-type":"application/json"},body:JSON.stringify({jsonrpc:"2.0",id:++rid,method:m,params:p})}).then(function(r){if(!r.ok)throw new Error("RPC "+r.status);return r.json()}).then(function(j){if(!j||typeof j!=="object")throw new Error("bad RPC reply");if(j.error)throw new Error(j.error.message);return j.result}).finally(function(){clearTimeout(t)})}
 function call(to,data,tag){return rpc("eth_call",[{to:to,data:data},tag])}
@@ -17,6 +20,7 @@ function short(a){return a.slice(0,6)+"…"+a.slice(-4)}
 function d10(ms){return new Date(ms).toISOString().slice(0,10)}
 var ARR='<svg class="ext" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 2.5h6v6M9.5 2.5 2.5 9.5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
 function link(h,t){var a=document.createElement("a");a.className="xl";a.href=h;a.target="_blank";a.rel="noopener noreferrer";a.textContent=t;a.insertAdjacentHTML("beforeend",ARR);return a}
+function emptyRow(msg){var r=$("rows"),tr=document.createElement("tr"),c=document.createElement("td");c.colSpan=4;c.className="empty";c.textContent=msg;tr.appendChild(c);r.textContent="";r.appendChild(tr)}
 function td(lbl,cls){var c=document.createElement("td");c.setAttribute("data-l",lbl);if(cls)c.className=cls;return c}
 async function chain(){
  var head=parseInt(await retry(function(){return rpc("eth_blockNumber",[]).then(function(v){return hex(v)})}),16);var tag="0x"+head.toString(16);
@@ -31,12 +35,12 @@ async function chain(){
  var bn=Array.from(new Set(logs.map(function(l){return l.blockNumber})));var ts={};
  await limit(bn.map(function(b){return function(){return rpc("eth_getBlockByNumber",[b,false]).then(function(x){if(!x)throw new Error("no block");ts[b]=parseInt(hex(x.timestamp),16)*1000})}}),CONC);
  $("burned").textContent=fmt(sum);$("count").textContent=String(logs.length);
- if(BigInt(bal)===0n&&!logs.length){$("poolhint").textContent="Not funded yet. Burns begin once 507,540,603 ORBS are sent to the Orbs burn controller.";$("counthint").textContent="Not funded yet. Weekly batches start once the program is funded.";$("burnedhint").textContent="Not funded yet. Nothing has been burned under OIP-10 so far."}
- var pct=Number(sum*10000n/(TOTAL*10n**18n))/100;$("progbar").style.width=Math.min(100,pct)+"%";$("progtxt").textContent=pct.toFixed(2)+"% of 507,540,603 ORBS in the program";
- if(logs.length){var L=logs[logs.length-1],sm=document.createElement("small");sm.textContent="ORBS";$("latest").textContent=fmt(L.v)+" ";$("latest").appendChild(sm);$("latesthint").textContent=d10(ts[L.blockNumber])+" UTC · ";$("latesthint").appendChild(link("https://etherscan.io/tx/"+L.transactionHash,"View transaction"))}
- else{$("latest").textContent="None yet";$("latesthint").textContent=BigInt(bal)===0n?"Not funded yet. The first weekly burn will appear here.":"The first weekly burn will appear here"}
- var rows=$("rows");if(logs.length){var fr=document.createDocumentFragment();logs.slice().reverse().forEach(function(l){var tr=document.createElement("tr"),c=td("Executed (UTC)");c.textContent=new Date(ts[l.blockNumber]).toLocaleString("en-GB",{timeZone:"UTC",day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).replace(" at",",")+" UTC";tr.appendChild(c);c=td("ORBS burned");c.textContent=fmt(l.v);tr.appendChild(c);var bnum=parseInt(l.blockNumber,16);c=td("Block");c.textContent=String(bnum);tr.appendChild(c);c=td("Evidence");c.appendChild(link("https://etherscan.io/tx/"+l.transactionHash,"View execution"));tr.appendChild(c);fr.appendChild(tr)});rows.textContent="";rows.appendChild(fr)}else rows.innerHTML='<tr><td colspan="4" class="empty">No burns yet. The first weekly burn will appear here after it is executed.</td></tr>';
- $("blockinfo").textContent="Data read from Ethereum at block ";$("blockinfo").appendChild(link("https://etherscan.io/block/"+head,head.toLocaleString("en-US")));
+ if(BigInt(bal)===0n&&!logs.length)slot("fund",function(){$("poolhint").textContent=t("nfPool");$("counthint").textContent=t("nfCount");$("burnedhint").textContent=t("nfBurned")});
+ var pct=Number(sum*10000n/(TOTAL*10n**18n))/100;$("progbar").style.width=Math.min(100,pct)+"%";slot("progtxt",function(){$("progtxt").textContent=t("progDyn",{pct:pct.toFixed(2)})});
+ if(logs.length){var L=logs[logs.length-1];slot("latest",function(){var sm=document.createElement("small");sm.textContent="ORBS";$("latest").textContent=fmt(L.v)+" ";$("latest").appendChild(sm);$("latesthint").textContent=d10(ts[L.blockNumber])+" UTC · ";$("latesthint").appendChild(link("https://etherscan.io/tx/"+L.transactionHash,t("viewTx")))})}
+ else{var nf=BigInt(bal)===0n;slot("latest",function(){$("latest").textContent=t("noneYet");$("latesthint").textContent=nf?t("firstNf"):t("first")})}
+ slot("rows",function(){var rows=$("rows");if(logs.length){var fr=document.createDocumentFragment();logs.slice().reverse().forEach(function(l){var tr=document.createElement("tr"),c=td(t("thExec"));c.textContent=I18N.date(ts[l.blockNumber]);tr.appendChild(c);c=td(t("thBurned"));c.textContent=fmt(l.v);tr.appendChild(c);var bnum=parseInt(l.blockNumber,16);c=td(t("thBlock"));c.textContent=String(bnum);tr.appendChild(c);c=td(t("thEvidence"));c.appendChild(link("https://etherscan.io/tx/"+l.transactionHash,t("viewExec")));tr.appendChild(c);fr.appendChild(tr)});rows.textContent="";rows.appendChild(fr)}else emptyRow(t("noBurns"))});
+ slot("blockinfo",function(){var bi=$("blockinfo");bi.textContent=t("blockPre");bi.appendChild(link("https://etherscan.io/block/"+head,head.toLocaleString("en-US")));var post=t("blockPost");if(post)bi.appendChild(document.createTextNode(post))});
  $("netdot").className="dot ok";
 }
 function weekStart(now){var d=new Date(now);var m=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())-((d.getUTCDay()+6)%7)*DAY;return m-WEEK}
@@ -46,32 +50,33 @@ function twap(prices,s,e){if(!okSeries(prices))return{ok:false,count:0,gap:0};va
 function chart(r,s,e){var el=$("chart"),W=640,H=240,P=8,pts=r.used.filter(function(p){return p[0]>=s&&p[0]<=e});var ys=pts.map(function(p){return p[1]}).concat([r.avg]),mn=Math.min.apply(0,ys),mx=Math.max.apply(0,ys),pad=(mx-mn)*.12||mx*.01;mn-=pad;mx+=pad;
  function X(t){return P+(t-s)/(e-s)*(W-2*P)}function Y(v){return H-22-(v-mn)/(mx-mn)*(H-40)}
  var line=pts.map(function(p){return X(p[0]).toFixed(1)+","+Y(p[1]).toFixed(1)}).join(" ");var g="";
- for(var k=0;k<=7;k++){var x=X(s+k*DAY);g+='<line x1="'+x+'" x2="'+x+'" y1="8" y2="'+(H-22)+'" stroke="#e2e2e2" class="cg"/>'+(k<7?'<text x="'+(x+4)+'" y="'+(H-6)+'" font-size="10" fill="#59595a" class="ct">'+["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][k]+'</text>':"")}
+ for(var k=0;k<=7;k++){var x=X(s+k*DAY);g+='<line x1="'+x+'" x2="'+x+'" y1="8" y2="'+(H-22)+'" stroke="#e2e2e2" class="cg"/>'+(k<7?'<text x="'+(x+4)+'" y="'+(H-6)+'" font-size="10" fill="#59595a" class="ct">'+t("days").split(",")[k]+'</text>':"")}
  el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+g+'<polyline points="'+line+'" fill="none" stroke="#3346f2" class="cp" stroke-width="1.6" vector-effect="non-scaling-stroke"/><line x1="'+P+'" x2="'+(W-P)+'" y1="'+Y(r.avg)+'" y2="'+Y(r.avg)+'" stroke="#da88de" stroke-width="2" stroke-dasharray="6 5" vector-effect="non-scaling-stroke"/></svg>'}
 async function pricing(){
  var s=weekStart(Date.now()),e=s+WEEK;
  var url="/api/oip10-burn/prices/";
- $("weeklbl").textContent=d10(s)+" to "+d10(e)+" · Monday 00:00 UTC";
+ slot("weeklbl",function(){$("weeklbl").textContent=t("week",{s:d10(s),e:d10(e)})});
  $("srclink").href=url;
  var key="orbsburn:cg:"+s,cached=null,data=null,stale=false;try{cached=JSON.parse(sessionStorage.getItem(key)||"null")}catch(x){}
  if(cached&&Date.now()-cached.at<15*60e3)data=cached.prices;
- else{try{var ctl=new AbortController(),t=setTimeout(function(){ctl.abort()},CGMS),j;try{var r=await fetch(url,{credentials:"omit",signal:ctl.signal,headers:{Accept:"application/json"}});if(!r.ok)throw new Error("HTTP "+r.status);j=await r.json()}finally{clearTimeout(t)}if(!j||!Array.isArray(j.prices))throw new Error("no prices");data=j.prices.filter(function(p){return !Array.isArray(p)||typeof p[0]!=="number"||!isFinite(p[0])||(p[0]>=s-MAXGAP&&p[0]<=e+MAXGAP)});if(okSeries(data))try{sessionStorage.setItem(key,JSON.stringify({at:Date.now(),prices:data}))}catch(x){}}
+ else{try{var ctl=new AbortController(),tmo=setTimeout(function(){ctl.abort()},CGMS),j;try{var r=await fetch(url,{credentials:"omit",signal:ctl.signal,headers:{Accept:"application/json"}});if(!r.ok)throw new Error("HTTP "+r.status);j=await r.json()}finally{clearTimeout(tmo)}if(!j||!Array.isArray(j.prices))throw new Error("no prices");data=j.prices.filter(function(p){return !Array.isArray(p)||typeof p[0]!=="number"||!isFinite(p[0])||(p[0]>=s-MAXGAP&&p[0]<=e+MAXGAP)});if(okSeries(data))try{sessionStorage.setItem(key,JSON.stringify({at:Date.now(),prices:data}))}catch(x){}}
   catch(err){if(cached){data=cached.prices;stale=true}else throw err}}
  var res=twap(data,s,e);
- $("obs").textContent=String(res.count);$("gap").textContent=(res.gap/3600e3).toFixed(1)+" hours";
- if(!res.ok&&res.tail&&e-res.cur<=MAXGAP&&Date.now()-e<LAG){$("twap").textContent="Not available yet";$("cov").textContent="Waiting for the final hourly price";$("pricestatus").textContent="The pricing week just closed. The final hourly price usually appears within about an hour.";return}
- if(!res.ok){$("twap").textContent="Not available";$("cov").textContent="Incomplete";$("pricestatus").textContent="The price observations for this week do not pass the coverage check.";return}
- $("twap").textContent="$"+res.avg.toFixed(6);$("cov").textContent="Complete";
- $("pricestatus").textContent="Source: CoinGecko ORBS/USD hourly observations"+(stale?" (showing the last loaded response; refresh failed)":"")+".";
- chart(res,s,e)}
-chain().catch(function(e){console.warn("chain",e);$("netdot").className="dot bad";$("rows").innerHTML='<tr><td colspan="4" class="empty">Burn history could not be loaded right now. Refresh to try again.</td></tr>';["burned","pool","latest","count"].forEach(function(i){$(i).textContent="Unavailable"})});
-pricing().catch(function(e){console.warn("pricing",e);$("twap").textContent="Unavailable";$("pricestatus").textContent="The price source could not be reached right now. Refresh later to try again.";["obs","gap","cov"].forEach(function(i){$(i).textContent="…"})});
-document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest(".copy");if(!b)return;var t=b.getAttribute("data-copy");var done=function(){b.textContent="Copied";setTimeout(function(){b.textContent="Copy"},1400)};if(navigator.clipboard)navigator.clipboard.writeText(t).then(done,function(){});});
+ $("obs").textContent=String(res.count);slot("gap",function(){$("gap").textContent=t("hours",{h:(res.gap/3600e3).toFixed(1)})});
+ if(!res.ok&&res.tail&&e-res.cur<=MAXGAP&&Date.now()-e<LAG){slot("pstate",function(){$("twap").textContent=t("notYet");$("cov").textContent=t("waitFinal");$("pricestatus").textContent=t("justClosed")});return}
+ if(!res.ok){slot("pstate",function(){$("twap").textContent=t("na");$("cov").textContent=t("incomplete");$("pricestatus").textContent=t("failCov")});return}
+ slot("pstate",function(){$("twap").textContent="$"+res.avg.toFixed(6);$("cov").textContent=t("complete");
+ $("pricestatus").textContent=t("srcDyn",{x:stale?t("stale"):""})});
+ slot("chart",function(){chart(res,s,e)})}
+chain().catch(function(e){console.warn("chain",e);$("netdot").className="dot bad";slot("rows",function(){emptyRow(t("histErr"))});delete SLOTS.latest;slot("chainerr",function(){["burned","pool","latest","count"].forEach(function(i){$(i).textContent=t("unavail")})})});
+pricing().catch(function(e){console.warn("pricing",e);delete SLOTS.gap;delete SLOTS.chart;slot("pstate",function(){$("twap").textContent=t("unavail");$("pricestatus").textContent=t("priceErr")});["obs","gap","cov"].forEach(function(i){$(i).textContent="…"})});
+document.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest(".copy");if(!b)return;var v=b.getAttribute("data-copy");var done=function(){b.textContent=t("copied");setTimeout(function(){b.textContent=t("copy")},1400)};if(navigator.clipboard)navigator.clipboard.writeText(v).then(done,function(){});});
 var RM=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
 var PALS={light:{paper:["rgba(70,52,46,.30)","rgba(104,70,54,.38)","rgba(170,92,52,.5)","rgba(235,120,60,.5)"],glow:[[26,"rgba(245,158,11,.10)"],[12,"rgba(255,122,47,.18)"],[5,"rgba(255,122,47,.45)"],[2.2,"rgba(245,158,11,.9)"],[.9,"rgba(240,88,122,.85)"]],e1:"#a8501f",e2:"#7a3b1c",ash:"#6b5a52",ea:.5,aa:.3},dark:{paper:["rgba(30,18,13,.82)","rgba(44,25,17,.85)","rgba(110,46,22,.75)","rgba(232,104,44,.6)"],glow:[[26,"rgba(245,130,40,.12)"],[12,"rgba(255,110,47,.22)"],[5,"rgba(255,110,47,.5)"],[2.2,"rgba(255,160,60,.95)"],[.9,"rgba(244,96,130,.9)"]],e1:"#e0702f",e2:"#a8461c",ash:"#8c7b70",ea:.6,aa:.4}};
 var ROOT=document.documentElement,TKEY="oip10-theme",onTheme=[];function isDark(){return ROOT.getAttribute("data-theme")==="dark"}var PAL=isDark()?PALS.dark:PALS.light;
-function setTheme(dark,save){if(dark)ROOT.setAttribute("data-theme","dark");else ROOT.removeAttribute("data-theme");var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",dark?"#0b0b0e":"#f6f6f6");var b=$("thm");if(b){b.setAttribute("aria-pressed",dark?"true":"false");b.setAttribute("aria-label",dark?"Switch to light mode":"Switch to dark mode")}PAL=dark?PALS.dark:PALS.light;if(save)try{localStorage.setItem(TKEY,dark?"dark":"light")}catch(x){}onTheme.forEach(function(f){f()})}
+function setTheme(dark,save){if(dark)ROOT.setAttribute("data-theme","dark");else ROOT.removeAttribute("data-theme");var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content",dark?"#0b0b0e":"#f6f6f6");var b=$("thm");if(b){b.setAttribute("aria-pressed",dark?"true":"false");b.setAttribute("aria-label",dark?t("themeLight"):t("themeDark"))}PAL=dark?PALS.dark:PALS.light;if(save)try{localStorage.setItem(TKEY,dark?"dark":"light")}catch(x){}onTheme.forEach(function(f){f()})}
 setTheme(isDark(),false);if($("thm"))$("thm").addEventListener("click",function(){setTheme(!isDark(),true)});
+I18N.on(function(){var b=$("thm");if(b)b.setAttribute("aria-label",isDark()?t("themeLight"):t("themeDark"))});
 (function burn(){var cv=$("embers"),hero=$("hero");if(!cv)return;var cx=cv.getContext("2d"),W=0,H=0,B=0,dpr=1,ps=[],raf=0,vis=true,onscreen=true,last=0,T0=0,PER=24000,MAXP=34;
 function size(){dpr=Math.min(window.devicePixelRatio||1,2);W=hero.clientWidth;H=hero.clientHeight;cv.width=W*dpr|0;cv.height=H*dpr|0;cx.setTransform(dpr,0,0,dpr,0,0);var st=hero.querySelector(".stats");B=Math.min(H,st?st.offsetTop+40:H*.6);MAXP=W<700?18:34;if(ps.length>MAXP)ps.length=MAXP}
 function nz(y,t){return Math.sin(y*.021+t*.00031)*14+Math.sin(y*.047-t*.00052+1.7)*7+Math.sin(y*.11+t*.0009+.4)*3}
@@ -94,8 +99,9 @@ if("IntersectionObserver"in window)new IntersectionObserver(function(es){onscree
 (function flow(){var f=$("flow");if(!f)return;var bx=f.querySelectorAll(".fbox"),lbl=$("fstep"),n=bx.length,k=0,tm=0,on=false,fl=f.querySelector(".fl"),cs=[];
 function meas(){var r=fl.getBoundingClientRect();cs=[];for(var j=0;j<n;j++){var b=bx[j].querySelector("i").getBoundingClientRect();cs.push(b.top+b.height/2-r.top)}fl.style.setProperty("--t0",cs[0]+"px");fl.style.setProperty("--len",(cs[n-1]-cs[0])+"px");fl.style.setProperty("--fill",((cs[k]||cs[0])-cs[0])+"px")}
 meas();window.addEventListener("resize",meas);if(document.fonts&&document.fonts.ready)document.fonts.ready.then(meas);
-function show(i){for(var j=0;j<n;j++){bx[j].classList.toggle("cur",j===i);bx[j].classList.toggle("done",j<i)}lbl.textContent="Step "+(i+1)+" of "+n;k=i;if(cs.length)fl.style.setProperty("--fill",(cs[i]-cs[0])+"px")}
-if(RM){f.classList.add("static");lbl.textContent=n+" steps";return}
+function show(i){for(var j=0;j<n;j++){bx[j].classList.toggle("cur",j===i);bx[j].classList.toggle("done",j<i)}lbl.textContent=t("step",{i:i+1,n:n});k=i;if(cs.length)fl.style.setProperty("--fill",(cs[i]-cs[0])+"px")}
+I18N.on(function(){lbl.textContent=RM?t("steps",{n:n}):t("step",{i:k+1,n:n})});
+if(RM){f.classList.add("static");lbl.textContent=t("steps",{n:n});return}
 f.classList.add("anim");show(0);function tick(){k=(k+1)%n;show(k);tm=setTimeout(tick,k===n-1?3200:2000)}
 if("IntersectionObserver"in window)new IntersectionObserver(function(es){var v=es[0].isIntersecting;if(v&&!on){on=true;tm=setTimeout(tick,2000)}else if(!v&&on){on=false;clearTimeout(tm)}},{threshold:.35}).observe(f);else tm=setTimeout(tick,2000)})();
 })();
