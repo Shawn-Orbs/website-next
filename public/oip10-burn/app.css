@@ -155,3 +155,4 @@ html:lang(ko) .tbl td::before,html:lang(ja) .tbl td::before{letter-spacing:.04em
 @media(max-width:460px){.top-tag{display:none}}
 @media(max-width:480px){html:lang(ja) .top-tag{display:none}}
 @media(max-width:760px){html:lang(ja) .net .nl-x{display:none}}
+:lang(ko) .top-tag,:lang(ko) .net,:lang(ko) .eyebrow,:lang(ko) .lbl,:lang(ko) .val small,:lang(ja) .top-tag,:lang(ja) .net,:lang(ja) .eyebrow,:lang(ja) .lbl,:lang(ja) .val small{letter-spacing:normal}
