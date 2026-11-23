@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isSameOrigin } from '@/lib/same-origin'
 
 /**
  * Ethereum JSON-RPC proxy for the OIP-10 burn tracker (`public/oip10-burn/`).
@@ -69,6 +70,15 @@ function allowed(method: unknown, params: unknown): boolean {
 }
 
 export async function POST(req: Request) {
+  // Refuse cross-site requests before spending any rpcman quota. Same two locks
+  // as the contact route: Sec-Fetch-Site / Origin must match this site, and the
+  // body must be declared application/json, which forces a CORS preflight that
+  // cannot pass (see `same-origin.ts`).
+  if (!isSameOrigin(req.headers)) return error(403, 'Forbidden')
+  if (!req.headers.get('content-type')?.startsWith('application/json')) {
+    return error(415, 'Content-Type must be application/json')
+  }
+
   const key = process.env.RPCMAN_KEY
   if (!key) return error(503, 'RPC is not configured')
 
