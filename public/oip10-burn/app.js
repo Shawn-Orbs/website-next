@@ -2,7 +2,7 @@
 // TODO: replace with a dedicated rpcman appId/key for the burn tracker, restricted to www.orbs.com
 var BURN_TRACKER_RPC_URL="https://rpcman.orbs.network/rpc?key=f74174cb04a077391271c4e660001a54346a17cf7f872bb340e8f327f23320b8&chainId=1&appId=multisig";
 var RPC=BURN_TRACKER_RPC_URL,MS="0x189a5caf060b94961f0d4f3e56ad0d678ebb6c12",TK="0xff56cc6b1e6ded347aa0b7676c85ab0b3d08b0fa",DEAD="0x000000000000000000000000000000000000dEaD";
-var DEPLOY=26435746,CHUNK=7200,TOTAL=507540603n,DAY=864e5,WEEK=7*DAY,MAXGAP=2*3600e3,CONC=4,RETRIES=3,RPCMS=15000,CGMS=20000,LAG=3*3600e3;
+var DEPLOY=26470738,CHUNK=7200,TOTAL=507540603n,DAY=864e5,WEEK=7*DAY,MAXGAP=2*3600e3,CONC=4,RETRIES=3,RPCMS=15000,CGMS=20000,LAG=3*3600e3;
 var HASH=/^0x[0-9a-fA-F]{64}$/,HEX=/^0x[0-9a-fA-F]{1,64}$/,WORD=/^0x[0-9a-fA-F]{64}$/;
 function hex(v,re){if(typeof v!=="string"||!(re||HEX).test(v))throw new Error("bad RPC value");return v}
 function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
