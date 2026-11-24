@@ -164,7 +164,7 @@ export default async function BlogPostPage({ params }: Props) {
             Orbs is a decentralized Layer-3 (L3) blockchain designed specifically for advanced on-chain trading.
             Utilizing a Proof-of-Stake consensus, Orbs acts as a supplementary execution layer, facilitating complex
             logic and scripts beyond the native functionalities of smart contracts. Orbs-powered protocols, including
-            dLIMIT, dTWAP, Liquidity Hub, and Perpetual Hub, push the boundaries of DeFi by introducing CeFi-level
+            dLIMIT, dTWAP, Liquidity Hub, and Perpetual Hub, push the bounds of DeFi by introducing CeFi-level
             execution to on-chain trading.
           </p>
 
@@ -186,28 +186,19 @@ export default async function BlogPostPage({ params }: Props) {
             or join our community:
           </p>
 
-          <ul>
-            <li>
-              <a
-                href="https://t.me/OrbsNetwork"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary no-underline hover:underline hover:text-secondary"
-              >
-                Telegram
-              </a>
-            </li>
-            <li>
-              <a
-                href="https://x.com/orbs_network"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary no-underline hover:underline hover:text-secondary"
-              >
-                X
-              </a>
-            </li>
-          </ul>
+          <p>
+            Telegram:{' '}
+            <a href="https://t.me/OrbsNetwork" target="_blank" rel="noopener noreferrer" className="text-primary no-underline [overflow-wrap:anywhere] hover:underline hover:text-secondary">
+              https://t.me/OrbsNetwork
+            </a>
+          </p>
+
+          <p>
+            X:{' '}
+            <a href="https://x.com/orbs_network" target="_blank" rel="noopener noreferrer" className="text-primary no-underline [overflow-wrap:anywhere] hover:underline hover:text-secondary">
+              https://x.com/orbs_network
+            </a>
+          </p>
         </footer>
       </article>
     </div>
