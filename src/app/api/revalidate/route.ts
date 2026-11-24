@@ -7,6 +7,8 @@ import {
   HOME_PATH,
   NEWS_INDEX_PATH,
   NEWS_PAGE_ROUTE,
+  SITEMAP_PATH,
+  XML_FEED_ROUTES,
   postPath,
   encodedPostPath,
 } from '@/app/lib/routes'
@@ -117,6 +119,10 @@ export async function POST(request: NextRequest) {
       revalidatePath(pages, 'page')
       return [index, pages]
     })
+    // The sitemap lists the news pages and their modification date. 'layout':
+    // see XML_FEED_ROUTES for why a route handler is not revalidated by URL.
+    revalidatePath(SITEMAP_PATH, 'layout')
+    paths.push(SITEMAP_PATH)
     console.info(`[revalidate] ${topic} ${entryId} (mediaMention) -> ${paths.join(', ')}`)
     return NextResponse.json({ revalidated: paths, topic })
   }
@@ -124,6 +130,8 @@ export async function POST(request: NextRequest) {
   // Narrowing on `!slug` directly (rather than via a derived boolean) is what
   // lets TypeScript treat `slug` as a string below.
   if (isRemoval || !isBlogPost || !slug) {
+    // Also reaches the RSS feed and sitemap: every render, route handlers
+    // included, carries the root `_N_T_/layout` tag.
     revalidatePath(HOME_PATH, 'layout')
 
     const reason = isRemoval
@@ -171,7 +179,13 @@ export async function POST(request: NextRequest) {
   // fetching the page count on every webhook.
   revalidatePath(BLOG_PAGE_ROUTE, 'page')
 
-  const revalidated = [...paths, BLOG_PAGE_ROUTE]
+  // The feed and sitemap list posts, so a publish reaches feed readers and
+  // crawlers now rather than at the daily fallback.
+  for (const route of XML_FEED_ROUTES) {
+    revalidatePath(route, 'layout')
+  }
+
+  const revalidated = [...paths, BLOG_PAGE_ROUTE, ...XML_FEED_ROUTES]
   console.info(`[revalidate] ${topic} ${entryId} -> ${revalidated.join(', ')}`)
   return NextResponse.json({ revalidated, topic })
 }

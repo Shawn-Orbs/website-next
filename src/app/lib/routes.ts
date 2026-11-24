@@ -83,6 +83,8 @@ export function encodedPostPath(slug: string): string {
 }
 
 export const BLOG_INDEX_PATH = '/blog/'
+/** Not under trailingSlash — a file, not a page route. */
+export const RSS_PATH = '/blog/rss.xml'
 export const HOME_PATH = '/'
 export const GOVERNANCE_PATH = '/governance-blog/'
 
@@ -107,10 +109,22 @@ export const BLOG_PAGE_ROUTE = '/blog/page/[n]'
 /**
  * Not under trailingSlash — it is a file, not a page route.
  *
- * The sitemap route is force-dynamic, so it needs no revalidation. Kept because
- * robots.txt advertises it and one definition beats two string literals.
+ * ISR; the webhook revalidates it on publish. robots.txt advertises it too.
  */
 export const SITEMAP_PATH = '/sitemap.xml'
+
+/**
+ * The ISR route handlers that list posts, as route FILES for
+ * `revalidatePath(route, 'layout')` — not as URLs.
+ *
+ * Next tags a route handler's render with its pathname plus the trailing slash
+ * `trailingSlash: true` adds (`_N_T_/blog/rss.xml/`), but `revalidatePath()`
+ * strips the trailing slash before building its tag (`_N_T_/blog/rss.xml`), so
+ * revalidating either URL spelling matches nothing. Every render also carries
+ * `_N_T_/<route file>/layout`, which `revalidatePath(route, 'layout')` builds
+ * exactly. Pages do not have this problem: their pathname tag has no slash.
+ */
+export const XML_FEED_ROUTES = ['/(en)/blog/rss.xml', SITEMAP_PATH] as const
 
 /**
  * Press coverage. `/news` is the legacy URL and is linked from the navbar and
